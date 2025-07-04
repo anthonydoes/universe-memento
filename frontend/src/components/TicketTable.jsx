@@ -212,7 +212,7 @@ export default function TicketTable({ filters }) {
   return (
     <div>
       {/* Table Controls */}
-      <div className="mb-4 flex items-center gap-4">
+      <div className="mb-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
           <input
@@ -225,7 +225,7 @@ export default function TicketTable({ filters }) {
         </div>
         <button
           onClick={handleExport}
-          className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 whitespace-nowrap"
+          className="flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 whitespace-nowrap"
         >
           <Download className="h-4 w-4 mr-2" />
           Export CSV
@@ -233,7 +233,7 @@ export default function TicketTable({ filters }) {
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto border border-gray-200 rounded-lg">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             {table.getHeaderGroups().map((headerGroup) => (
@@ -241,17 +241,19 @@ export default function TicketTable({ filters }) {
                 {headerGroup.headers.map((header) => (
                   <th
                     key={header.id}
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                     onClick={header.column.getToggleSortingHandler()}
                   >
                     <div className="flex items-center">
-                      {flexRender(
-                        header.column.columnDef.header,
-                        header.getContext()
-                      )}
+                      <span className="truncate">
+                        {flexRender(
+                          header.column.columnDef.header,
+                          header.getContext()
+                        )}
+                      </span>
                       {{
-                        asc: <ChevronUp className="ml-1 h-4 w-4" />,
-                        desc: <ChevronDown className="ml-1 h-4 w-4" />,
+                        asc: <ChevronUp className="ml-1 h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />,
+                        desc: <ChevronDown className="ml-1 h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />,
                       }[header.column.getIsSorted()] ?? null}
                     </div>
                   </th>
@@ -263,8 +265,10 @@ export default function TicketTable({ filters }) {
             {table.getRowModel().rows.map((row) => (
               <tr key={row.id} className="hover:bg-gray-50">
                 {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  <td key={cell.id} className="px-3 sm:px-6 py-4 text-xs sm:text-sm text-gray-900">
+                    <div className="truncate max-w-xs">
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </div>
                   </td>
                 ))}
               </tr>
@@ -274,24 +278,24 @@ export default function TicketTable({ filters }) {
       </div>
 
       {/* Pagination */}
-      <div className="mt-4 flex items-center justify-between">
-        <div className="text-sm text-gray-700">
+      <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="text-xs sm:text-sm text-gray-700 order-2 sm:order-1">
           Showing {((pagination.page - 1) * pagination.limit) + 1} to{' '}
           {Math.min(pagination.page * pagination.limit, pagination.total)} of{' '}
           {pagination.total} results
         </div>
-        <div className="flex space-x-2">
+        <div className="flex space-x-2 order-1 sm:order-2">
           <button
             onClick={() => table.previousPage()}
             disabled={!table.getCanPreviousPage()}
-            className="px-3 py-1 border border-gray-300 rounded-md disabled:opacity-50"
+            className="px-3 py-2 text-sm border border-gray-300 rounded-md disabled:opacity-50 hover:bg-gray-50"
           >
             Previous
           </button>
           <button
             onClick={() => table.nextPage()}
             disabled={!table.getCanNextPage()}
-            className="px-3 py-1 border border-gray-300 rounded-md disabled:opacity-50"
+            className="px-3 py-2 text-sm border border-gray-300 rounded-md disabled:opacity-50 hover:bg-gray-50"
           >
             Next
           </button>

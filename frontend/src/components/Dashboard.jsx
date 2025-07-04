@@ -47,10 +47,10 @@ export default function Dashboard({ onLogout }) {
       {/* Header */}
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-gray-900">Universe Memento 🎟️</h1>
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-500">Last updated: {new Date().toLocaleTimeString()}</span>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Universe Memento 🎟️</h1>
+            <div className="flex items-center space-x-2 sm:space-x-4">
+              <span className="text-xs sm:text-sm text-gray-500 hidden sm:block">Last updated: {new Date().toLocaleTimeString()}</span>
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
               {onLogout && (
                 <button
@@ -59,7 +59,7 @@ export default function Dashboard({ onLogout }) {
                   title="Logout"
                 >
                   <LogOut className="h-4 w-4 mr-1" />
-                  Logout
+                  <span className="hidden sm:inline">Logout</span>
                 </button>
               )}
             </div>
@@ -69,18 +69,18 @@ export default function Dashboard({ onLogout }) {
 
       {/* KPI Cards */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {kpiCards.map((card, index) => (
-            <div key={index} className="bg-white rounded-lg shadow p-6">
+            <div key={index} className="bg-white rounded-lg shadow p-4 sm:p-6">
               <div className="flex items-center justify-between mb-4">
-                <card.icon className="h-8 w-8 text-gray-400" />
-                <div className={`flex items-center text-sm ${card.trendUp ? 'text-green-600' : 'text-red-600'}`}>
-                  {card.trendUp ? <TrendingUp className="h-4 w-4 mr-1" /> : <TrendingDown className="h-4 w-4 mr-1" />}
+                <card.icon className="h-6 w-6 sm:h-8 sm:w-8 text-gray-400" />
+                <div className={`flex items-center text-xs sm:text-sm ${card.trendUp ? 'text-green-600' : 'text-red-600'}`}>
+                  {card.trendUp ? <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 mr-1" /> : <TrendingDown className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />}
                   {card.trend}
                 </div>
               </div>
-              <h3 className="text-sm text-gray-600 mb-1">{card.title}</h3>
-              <p className="text-2xl font-bold text-gray-900">{loading ? '...' : card.value}</p>
+              <h3 className="text-xs sm:text-sm text-gray-600 mb-1">{card.title}</h3>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900">{loading ? '...' : card.value}</p>
             </div>
           ))}
         </div>
@@ -96,7 +96,7 @@ export default function Dashboard({ onLogout }) {
               <nav className="-mb-px flex">
                 <button
                   onClick={() => setActiveTab('analytics')}
-                  className={`px-6 py-3 border-b-2 font-medium text-sm ${
+                  className={`px-4 sm:px-6 py-3 border-b-2 font-medium text-sm flex-1 sm:flex-initial ${
                     activeTab === 'analytics'
                       ? 'border-blue-500 text-blue-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -106,7 +106,7 @@ export default function Dashboard({ onLogout }) {
                 </button>
                 <button
                   onClick={() => setActiveTab('table')}
-                  className={`px-6 py-3 border-b-2 font-medium text-sm ${
+                  className={`px-4 sm:px-6 py-3 border-b-2 font-medium text-sm flex-1 sm:flex-initial ${
                     activeTab === 'table'
                       ? 'border-blue-500 text-blue-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -118,7 +118,7 @@ export default function Dashboard({ onLogout }) {
             </div>
 
             {/* Tab Content */}
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               {activeTab === 'analytics' ? (
                 <Analytics analytics={analytics} loading={loading} filters={filters} />
               ) : (
