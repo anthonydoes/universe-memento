@@ -1,4 +1,4 @@
-# Universe Memento Dashboard
+# Universe Analytics Dashboard
 
 A complete ticketing analytics system that receives Universe webhooks, stores data in Google Sheets, and provides a modern web dashboard for viewing, filtering, sorting, and analyzing ticket sales data.
 
