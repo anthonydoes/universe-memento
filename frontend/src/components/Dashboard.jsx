@@ -7,7 +7,7 @@ import TicketTable from './TicketTable';
 import Analytics from './Analytics';
 
 export default function Dashboard({ onLogout }) {
-  const [activeTab, setActiveTab] = useState('analytics');
+  const [activeTab, setActiveTab] = useState('table');
   const [filters, setFilters] = useState({});
   const { analytics, loading } = useAnalytics(filters);
 
@@ -95,16 +95,6 @@ export default function Dashboard({ onLogout }) {
             <div className="border-b border-gray-200">
               <nav className="-mb-px flex">
                 <button
-                  onClick={() => setActiveTab('analytics')}
-                  className={`px-4 sm:px-6 py-3 border-b-2 font-medium text-sm flex-1 sm:flex-initial ${
-                    activeTab === 'analytics'
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  Analytics
-                </button>
-                <button
                   onClick={() => setActiveTab('table')}
                   className={`px-4 sm:px-6 py-3 border-b-2 font-medium text-sm flex-1 sm:flex-initial ${
                     activeTab === 'table'
@@ -114,15 +104,25 @@ export default function Dashboard({ onLogout }) {
                 >
                   Ticket Data
                 </button>
+                <button
+                  onClick={() => setActiveTab('analytics')}
+                  className={`px-4 sm:px-6 py-3 border-b-2 font-medium text-sm flex-1 sm:flex-initial ${
+                    activeTab === 'analytics'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  Analytics
+                </button>
               </nav>
             </div>
 
             {/* Tab Content */}
             <div className="p-4 sm:p-6">
-              {activeTab === 'analytics' ? (
-                <Analytics analytics={analytics} loading={loading} filters={filters} />
-              ) : (
+              {activeTab === 'table' ? (
                 <TicketTable filters={filters} />
+              ) : (
+                <Analytics analytics={analytics} loading={loading} filters={filters} />
               )}
             </div>
           </div>
