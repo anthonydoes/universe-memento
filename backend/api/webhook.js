@@ -97,7 +97,7 @@ function extractTicketData(payload) {
     const mainRate = payload.rates?.find(r => r.id === mainTicket.rate_id);
     console.log(`Main rate: ${mainRate?.name}, main ticket name: ${mainTicket?.name}`);
     
-    // Find the Memento Ticket add-on for display
+    // Find the Memento Ticket add-on for display and pricing
     const mementoAddon = costItems.find(item => {
       const rate = payload.rates?.find(r => r.id === item.rate_id);
       const itemName = rate?.name || item.name || '';
@@ -105,7 +105,7 @@ function extractTicketData(payload) {
     });
     const mementoRate = mementoAddon ? payload.rates?.find(r => r.id === mementoAddon.rate_id) : null;
     const mementoName = mementoRate?.name || mementoAddon?.name || 'Memento Ticket';
-    console.log(`Memento add-on: ${mementoName}`);
+    console.log(`Memento add-on: ${mementoName}, price: ${mementoRate?.price || mementoAddon?.src_price || 0}`);
     
     // Create one record per ticket (not per cost item)
     const ticketData = {
@@ -126,7 +126,7 @@ function extractTicketData(payload) {
       costItemId: mainTicket.id,
       ticketStatus: mainTicket.state || ticket.state || '',
       paymentStatus: ticket.payment_state || '',
-      price: parseFloat(mainRate?.price || mainRate?.src_price || mainTicket.src_price || 0),
+      price: parseFloat(mementoRate?.price || mementoRate?.src_price || mementoAddon?.src_price || 0),
       currency: ticket.src_currency || 'USD',
       quantity: mainRate?.qty || 1,
     };
