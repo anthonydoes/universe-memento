@@ -116,8 +116,8 @@ function extractTicketData(payload) {
     const ticketData = {
       purchaseDate: new Date(ticket.created_at).toLocaleDateString('en-US', { timeZone: 'America/New_York' }),
       purchaseTime: new Date(ticket.created_at).toLocaleTimeString('en-US', { timeZone: 'America/New_York' }),
-      eventDate: new Date(event.start_stamp * 1000).toLocaleDateString(),
-      eventTime: new Date(event.start_stamp * 1000).toLocaleTimeString(),
+      eventDate: new Date(event.start_stamp * 1000).toLocaleDateString('en-US', { timeZone: event.tz || 'America/Los_Angeles' }),
+      eventTime: new Date(event.start_stamp * 1000).toLocaleTimeString('en-US', { timeZone: event.tz || 'America/Los_Angeles' }),
       attendeeName: `${mainTicket.first_name || mainTicket.guest_first_name || ''} ${mainTicket.last_name || mainTicket.guest_last_name || ''}`.trim(),
       email: mainTicket.guest_email || ticket.buyer_email || '',
       address: address,
@@ -141,6 +141,8 @@ function extractTicketData(payload) {
 
     console.log(`Adding ticket record: ${ticketData.ticketId} - ${ticketData.ticketRateName} + ${ticketData.addOnRateName}`);
     console.log(`Record details: attendee=${ticketData.attendeeName}, cost_item_id=${ticketData.costItemId}`);
+    console.log(`Event time (local): ${ticketData.eventTime}, timezone: ${event.tz}`);
+    console.log(`Columns: ticket=${ticketData.ticketRateName}, addon=${ticketData.addOnRateName}, venue=${ticketData.venueName}`);
     results.push(ticketData);
   }
 
@@ -231,8 +233,37 @@ export default async function handler(req, res) {
     }
 
     if (filteredTicketData.length > 0) {
+      // Check for duplicates by reading existing data first
+      const existingResponse = await sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `${SHEET_NAME}!P:P`, // Ticket ID column
+      });
+      
+      const existingTicketIds = new Set(
+        existingResponse.data.values?.slice(1).map(row => row[0]).filter(Boolean) || []
+      );
+      
+      // Filter out duplicates
+      const newTicketData = filteredTicketData.filter(data => {
+        const isDuplicate = existingTicketIds.has(data.ticketId);
+        if (isDuplicate) {
+          console.log(`Skipping duplicate ticket: ${data.ticketId}`);
+        }
+        return !isDuplicate;
+      });
+      
+      if (newTicketData.length === 0) {
+        console.log('All tickets are duplicates, skipping insert');
+        return res.status(200).json({ 
+          status: 'ignored', 
+          message: 'All tickets are duplicates' 
+        });
+      }
+      
+      console.log(`Processing ${newTicketData.length} new tickets (filtered out ${filteredTicketData.length - newTicketData.length} duplicates)`);
+      
       // Append data to Google Sheets
-      const values = filteredTicketData.map(data => [
+      const values = newTicketData.map(data => [
         data.purchaseDate,
         data.purchaseTime,
         data.eventDate,
@@ -268,7 +299,7 @@ export default async function handler(req, res) {
       console.log(`${values.length} row(s) appended to sheet successfully`);
       return res.status(200).json({ 
         status: 'success', 
-        message: `Processed ${filteredTicketData.length} ticket(s)` 
+        message: `Processed ${newTicketData.length} new ticket(s)` 
       });
     }
     
