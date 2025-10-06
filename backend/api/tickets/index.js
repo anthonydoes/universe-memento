@@ -92,6 +92,13 @@ export default async function handler(req, res) {
       tickets = tickets.filter(t => t.ticketStatus === status);
     }
 
+    // Sort by purchase date (newest first)
+    tickets.sort((a, b) => {
+      const dateA = new Date(a.purchaseDate + ' ' + a.purchaseTime);
+      const dateB = new Date(b.purchaseDate + ' ' + b.purchaseTime);
+      return dateB - dateA; // Newest first
+    });
+
     // Pagination
     const startIndex = (page - 1) * limit;
     const endIndex = startIndex + parseInt(limit);

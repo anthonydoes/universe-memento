@@ -139,7 +139,7 @@ function extractTicketData(payload) {
       quantity: mainRate?.qty || 1,
     };
 
-    console.log(`Adding ticket record: ${ticketData.ticketId} - ${ticketData.rateName}`);
+    console.log(`Adding ticket record: ${ticketData.ticketId} - ${ticketData.ticketRateName} + ${ticketData.addOnRateName}`);
     console.log(`Record details: attendee=${ticketData.attendeeName}, cost_item_id=${ticketData.costItemId}`);
     results.push(ticketData);
   }
@@ -222,7 +222,7 @@ export default async function handler(req, res) {
     // Log details about what was found
     if (filteredTicketData.length > 0) {
       console.log('Matching tickets:', filteredTicketData.map(t => ({ 
-        rateName: t.rateName, 
+        ticketType: `${t.ticketRateName} + ${t.addOnRateName}`, 
         attendee: t.attendeeName,
         ticketId: t.ticketId 
       })));
