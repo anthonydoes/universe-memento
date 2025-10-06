@@ -60,7 +60,7 @@ export default async function handler(req, res) {
     // Fetch all data from sheet
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!A:T`,
+      range: `${SHEET_NAME}!A:X`,
     });
 
     let tickets = parseSheetData(response.data.values);

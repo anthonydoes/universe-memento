@@ -32,6 +32,7 @@ function verifyWebhookSignature(payload, signature, secret) {
 
 // Extract ticket data from webhook payload
 function extractTicketData(payload) {
+  console.log('=== EXTRACT TICKET DATA CALLED ===');
   const results = [];
   
   // Process each ticket in the tickets array
@@ -39,6 +40,8 @@ function extractTicketData(payload) {
     console.error('No tickets array found in payload');
     return results;
   }
+  
+  console.log(`Processing ${payload.tickets.length} ticket(s) from payload`);
 
   for (const ticket of payload.tickets) {
     // Find the related event
@@ -48,49 +51,97 @@ function extractTicketData(payload) {
       continue;
     }
 
-    // Process each cost item for this ticket
+    // Get all cost items for this ticket
     const costItems = payload.cost_items?.filter(ci => ticket.cost_item_ids?.includes(ci.id)) || [];
     
-    for (const costItem of costItems) {
-      // Find the rate information
-      const rate = payload.rates?.find(r => r.id === costItem.rate_id);
+    // Check if this ticket has the target add-on
+    const targetTicketType = process.env.TARGET_TICKET_TYPE;
+    console.log(`\nChecking ticket ${ticket.id} for add-on "${targetTicketType}"`);
+    
+    const hasTargetAddon = costItems.some(item => {
+      const rate = payload.rates?.find(r => r.id === item.rate_id);
+      const itemName = rate?.name || item.name || '';
+      console.log(`  Cost item: "${itemName}", is_add_on: ${item.is_add_on}, rate_type: ${item.rate_type}`);
       
-      // Find address from host_fields
-      let address = '';
-      if (payload.host_fields && ticket.host_field_ids) {
-        const addressField = payload.host_fields.find(hf => 
-          ticket.host_field_ids.includes(hf.id) && 
-          hf.name === 'Address'
-        );
-        address = addressField?.value || '';
-      }
-
-      // Extract ticket data
-      const ticketData = {
-        purchaseDate: new Date(ticket.created_at).toLocaleDateString('en-US', { timeZone: 'America/New_York' }),
-        purchaseTime: new Date(ticket.created_at).toLocaleTimeString('en-US', { timeZone: 'America/New_York' }),
-        eventDate: new Date(event.start_stamp * 1000).toLocaleDateString(),
-        eventTime: new Date(event.start_stamp * 1000).toLocaleTimeString(),
-        attendeeName: `${costItem.first_name || costItem.guest_first_name || ''} ${costItem.last_name || costItem.guest_last_name || ''}`.trim(),
-        email: costItem.guest_email || ticket.buyer_email || '',
-        address: address,
-        rateName: rate?.name || costItem.name || '',
-        eventTitle: payload.listings?.[0]?.title || '',
-        eventAddress: payload.listings?.[0]?.address || '',
-        hostName: payload.listings?.[0]?.host_name || '',
-        eventStartTime: new Date(event.start_stamp * 1000).toISOString(),
-        eventEndTime: new Date(event.end_stamp * 1000).toISOString(),
-        ticketId: ticket.id,
-        costItemId: costItem.id,
-        ticketStatus: costItem.state || ticket.state || '',
-        paymentStatus: ticket.payment_state || '',
-        price: parseFloat(rate?.price || rate?.src_price || costItem.src_price || 0),
-        currency: ticket.src_currency || 'USD',
-        quantity: rate?.qty || 1,
-      };
-
-      results.push(ticketData);
+      // Check if it's an add-on that contains "Memento Ticket" (case-insensitive)
+      const containsMementoTicket = itemName.toLowerCase().includes('memento ticket');
+      console.log(`  Contains "memento ticket": ${containsMementoTicket}`);
+      console.log(`  Match check: contains("memento ticket") && ${item.is_add_on} === true`);
+      const matches = containsMementoTicket && item.is_add_on === true;
+      console.log(`  Result: ${matches}`);
+      return matches;
+    });
+    
+    console.log(`Ticket ${ticket.id} has target add-on: ${hasTargetAddon}`);
+    
+    // If we're looking for a specific add-on and this ticket doesn't have it, skip
+    if (targetTicketType !== 'ALL' && !hasTargetAddon) {
+      continue;
     }
+    
+    // Find the main ticket (non-add-on) for primary info
+    const mainTicket = costItems.find(item => !item.is_add_on) || costItems[0];
+    console.log(`Main ticket found: ${mainTicket?.name}, is_add_on: ${mainTicket?.is_add_on}`);
+    
+    // Find address from host_fields
+    let address = '';
+    if (payload.host_fields && ticket.host_field_ids) {
+      const addressField = payload.host_fields.find(hf => 
+        ticket.host_field_ids.includes(hf.id) && 
+        hf.name === 'Address'
+      );
+      address = addressField?.value || '';
+    }
+
+    // Get main ticket rate info
+    const mainRate = payload.rates?.find(r => r.id === mainTicket.rate_id);
+    console.log(`Main rate: ${mainRate?.name}, main ticket name: ${mainTicket?.name}`);
+    
+    // Find the Memento Ticket add-on for display
+    const mementoAddon = costItems.find(item => {
+      const rate = payload.rates?.find(r => r.id === item.rate_id);
+      const itemName = rate?.name || item.name || '';
+      return itemName.toLowerCase().includes('memento ticket') && item.is_add_on === true;
+    });
+    const mementoRate = mementoAddon ? payload.rates?.find(r => r.id === mementoAddon.rate_id) : null;
+    const mementoName = mementoRate?.name || mementoAddon?.name || 'Memento Ticket';
+    console.log(`Memento add-on: ${mementoName}`);
+    
+    // Calculate service fee (display_price - price)
+    const basePrice = parseFloat(mainRate?.price || mainRate?.src_price || mainTicket.src_price || 0);
+    const displayPrice = parseFloat(mainRate?.display_price || basePrice);
+    const serviceFee = displayPrice - basePrice;
+    
+    // Create one record per ticket (not per cost item)
+    const ticketData = {
+      purchaseDate: new Date(ticket.created_at).toLocaleDateString('en-US', { timeZone: 'America/New_York' }),
+      purchaseTime: new Date(ticket.created_at).toLocaleTimeString('en-US', { timeZone: 'America/New_York' }),
+      eventDate: new Date(event.start_stamp * 1000).toLocaleDateString(),
+      eventTime: new Date(event.start_stamp * 1000).toLocaleTimeString(),
+      attendeeName: `${mainTicket.first_name || mainTicket.guest_first_name || ''} ${mainTicket.last_name || mainTicket.guest_last_name || ''}`.trim(),
+      email: mainTicket.guest_email || ticket.buyer_email || '',
+      address: address,
+      ticketRateName: mainRate?.name || mainTicket.name || '',
+      addOnRateName: mementoName,
+      eventTitle: payload.listings?.[0]?.title || '',
+      eventAddress: payload.listings?.[0]?.address || '',
+      venueName: payload.listings?.[0]?.venue_name || '',
+      hostName: payload.listings?.[0]?.host_name || '',
+      eventStartTime: new Date(event.start_stamp * 1000).toISOString(),
+      eventEndTime: new Date(event.end_stamp * 1000).toISOString(),
+      ticketId: ticket.id,
+      costItemId: mainTicket.id,
+      ticketStatus: mainTicket.state || ticket.state || '',
+      paymentStatus: ticket.payment_state || '',
+      price: basePrice,
+      serviceFee: serviceFee,
+      currency: ticket.src_currency || 'USD',
+      quantity: mainRate?.qty || 1,
+    };
+
+    console.log(`Adding ticket record: ${ticketData.ticketId} - ${ticketData.rateName}`);
+    console.log(`Record details: attendee=${ticketData.attendeeName}, cost_item_id=${ticketData.costItemId}`);
+    results.push(ticketData);
   }
 
   return results;
@@ -139,14 +190,13 @@ export default async function handler(req, res) {
     const signature = req.headers['x-uniiverse-signature'];
     const secret = process.env.UNIVERSE_WEBHOOK_SECRET;
     
-    console.log('Webhook received:', {
-      hasSignature: !!signature,
-      hasSecret: !!secret,
-      bodyLength: rawBody.length,
-      method: req.method,
-      contentType: req.headers['content-type'],
-      userAgent: req.headers['user-agent']
-    });
+    console.log('=== WEBHOOK RECEIVED ===');
+    console.log('Timestamp:', new Date().toISOString());
+    console.log('Headers:', JSON.stringify(req.headers, null, 2));
+    console.log('Signature present:', !!signature);
+    console.log('Secret present:', !!secret);
+    console.log('Body length:', rawBody.length);
+    console.log('TARGET_TICKET_TYPE:', process.env.TARGET_TICKET_TYPE);
 
     if (!signature || !secret) {
       console.error('Missing signature or secret');
@@ -164,18 +214,21 @@ export default async function handler(req, res) {
     const payload = JSON.parse(rawBody);
     console.log('Payload parsed successfully, tickets:', payload.tickets?.length || 0);
     
-    // Extract all ticket data from the payload
-    const allTicketData = extractTicketData(payload);
-    console.log('Extracted ticket data count:', allTicketData.length);
+    // Extract ticket data from the payload (already filtered for target add-on)
+    const filteredTicketData = extractTicketData(payload);
+    console.log('Tickets with target add-on count:', filteredTicketData.length);
+    console.log('Target add-on type:', process.env.TARGET_TICKET_TYPE);
     
-    // Filter by target ticket type
-    const targetTicketType = process.env.TARGET_TICKET_TYPE;
-    const filteredTicketData = allTicketData.filter(ticket => 
-      targetTicketType === 'ALL' || ticket.rateName === targetTicketType
-    );
-
-    console.log('Filtered ticket data count:', filteredTicketData.length);
-    console.log('Target ticket type:', targetTicketType);
+    // Log details about what was found
+    if (filteredTicketData.length > 0) {
+      console.log('Matching tickets:', filteredTicketData.map(t => ({ 
+        rateName: t.rateName, 
+        attendee: t.attendeeName,
+        ticketId: t.ticketId 
+      })));
+    } else {
+      console.log('No tickets found with the target add-on');
+    }
 
     if (filteredTicketData.length > 0) {
       // Append data to Google Sheets
@@ -187,9 +240,11 @@ export default async function handler(req, res) {
         data.attendeeName,
         data.email,
         data.address,
-        data.rateName,
+        data.ticketRateName,
+        data.addOnRateName,
         data.eventTitle,
         data.eventAddress,
+        data.venueName,
         data.hostName,
         data.eventStartTime,
         data.eventEndTime,
@@ -198,13 +253,14 @@ export default async function handler(req, res) {
         data.ticketStatus,
         data.paymentStatus,
         data.price,
+        data.serviceFee,
         data.currency,
         data.quantity,
       ]);
 
       await sheets.spreadsheets.values.append({
         spreadsheetId: SPREADSHEET_ID,
-        range: `${SHEET_NAME}!A:T`,
+        range: `${SHEET_NAME}!A:X`,
         valueInputOption: 'USER_ENTERED',
         requestBody: { values },
       });
@@ -218,7 +274,7 @@ export default async function handler(req, res) {
     
     return res.status(200).json({ 
       status: 'ignored', 
-      message: `No tickets matched target type: ${targetTicketType}` 
+      message: `No tickets matched target add-on: ${process.env.TARGET_TICKET_TYPE}` 
     });
   } catch (error) {
     console.error('Webhook error:', error);

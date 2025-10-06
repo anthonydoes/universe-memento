@@ -80,14 +80,25 @@ export default function TicketTable({ filters }) {
         ),
       },
       {
+        accessorKey: 'venueName',
+        header: 'Venue',
+        size: 150,
+      },
+      {
         accessorKey: 'hostName',
         header: 'Host Name',
         size: 140,
       },
       {
-        accessorKey: 'rateName',
+        accessorKey: 'ticketRateName',
         header: 'Ticket Type',
         size: 150,
+      },
+      {
+        accessorKey: 'addOnRateName',
+        header: 'Add-on',
+        size: 150,
+        cell: (info) => info.getValue() || '-',
       },
       {
         accessorKey: 'quantity',
@@ -98,6 +109,12 @@ export default function TicketTable({ filters }) {
       {
         accessorKey: 'price',
         header: 'Price',
+        cell: (info) => formatCurrency(info.getValue()),
+        size: 100,
+      },
+      {
+        accessorKey: 'serviceFee',
+        header: 'Service Fee',
         cell: (info) => formatCurrency(info.getValue()),
         size: 100,
       },

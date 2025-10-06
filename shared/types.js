@@ -8,8 +8,12 @@ export const TicketRecord = {
   attendeeName: '',
   email: '',
   address: '',
-  rateName: '',
+  ticketRateName: '',
+  addOnRateName: '',
   eventTitle: '',
+  eventAddress: '',
+  venueName: '',
+  hostName: '',
   eventStartTime: '',
   eventEndTime: '',
   ticketId: '',
@@ -17,6 +21,7 @@ export const TicketRecord = {
   ticketStatus: '',
   paymentStatus: '',
   price: 0,
+  serviceFee: 0,
   currency: 'USD',
   quantity: 1
 };
