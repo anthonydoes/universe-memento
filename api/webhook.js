@@ -233,7 +233,7 @@ export default async function handler(req, res) {
     const signature = req.headers['x-uniiverse-signature'];
     const secret = process.env.UNIVERSE_WEBHOOK_SECRET;
     
-    console.log('=== WEBHOOK RECEIVED (v6.0 - Debug Row Updates) ===');
+    console.log('=== WEBHOOK RECEIVED (v7.0 - Fix Ticket ID Lookup) ===');
     console.log('Timestamp:', new Date().toISOString());
     console.log('Headers:', JSON.stringify(req.headers, null, 2));
     console.log('Signature present:', !!signature);
@@ -293,7 +293,17 @@ export default async function handler(req, res) {
           console.log(`  Ticket ${index + 1}: ID=${data.ticketId}, Cost Item ID=${data.costItemId}`);
         });
         
-        for (const data of filteredTicketData) {
+        // Group by ticket ID to avoid duplicate processing
+        const ticketGroups = {};
+        filteredTicketData.forEach(data => {
+          if (!ticketGroups[data.ticketId]) {
+            ticketGroups[data.ticketId] = data; // Use first occurrence for update data
+          }
+        });
+        
+        console.log(`Found ${Object.keys(ticketGroups).length} unique ticket IDs to update`);
+        
+        for (const [ticketId, data] of Object.entries(ticketGroups)) {
           // Read all rows to find the one to update
           const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
@@ -302,78 +312,86 @@ export default async function handler(req, res) {
           
           const rows = response.data.values || [];
           const headers = rows[0] || [];
-          const costItemIdIndex = headers.indexOf('Cost Item ID');
+          const ticketIdIndex = headers.indexOf('Ticket ID');
           
           console.log('DEBUG - Row lookup:');
           console.log('  Sheet headers:', headers);
-          console.log('  Cost Item ID column index:', costItemIdIndex);
-          console.log('  Looking for Cost Item ID:', data.costItemId);
+          console.log('  Ticket ID column index:', ticketIdIndex);
+          console.log('  Looking for Ticket ID:', data.ticketId);
           console.log('  Total rows in sheet:', rows.length);
           
-          if (costItemIdIndex === -1) {
-            console.error('Cost Item ID column not found in sheet');
+          if (ticketIdIndex === -1) {
+            console.error('Ticket ID column not found in sheet');
             console.error('Available headers:', headers);
             continue;
           }
           
-          // Find row with matching cost item ID
-          let rowIndex = -1;
+          // Find ALL rows with matching ticket ID (there can be multiple for one order)
+          let matchingRowIndices = [];
           for (let i = 1; i < rows.length; i++) {
-            const cellValue = rows[i][costItemIdIndex];
-            console.log(`  Row ${i + 1}: Cost Item ID = "${cellValue}" (type: ${typeof cellValue}) (comparing to "${data.costItemId}" type: ${typeof data.costItemId})`);
+            const cellValue = rows[i][ticketIdIndex];
+            console.log(`  Row ${i + 1}: Ticket ID = "${cellValue}" (type: ${typeof cellValue}) (comparing to "${data.ticketId}" type: ${typeof data.ticketId})`);
             // Try both string comparison and trimmed comparison
-            if (cellValue === data.costItemId || String(cellValue).trim() === String(data.costItemId).trim()) {
-              rowIndex = i;
+            if (cellValue === data.ticketId || String(cellValue).trim() === String(data.ticketId).trim()) {
+              matchingRowIndices.push(i);
               console.log(`  ✅ MATCH found at row ${i + 1}`);
-              break;
             }
           }
           
-          if (rowIndex === -1) {
+          if (matchingRowIndices.length === 0) {
             console.log('  ❌ NO MATCH found in any row');
+          } else {
+            console.log(`  Found ${matchingRowIndices.length} matching rows for ticket ${data.ticketId}`);
           }
           
-          if (rowIndex > 0) {
-            console.log(`Found existing row at index ${rowIndex + 1} for cost item ${data.costItemId}`);
-            
-            // Prepare updated row data (23 columns)
-            const updatedRow = [
-              data.purchaseDate,
-              data.purchaseTime,
-              data.eventDate,
-              data.eventTime,
-              data.attendeeName,
-              data.email,
-              data.mailingAddress,
-              data.ticketName,
-              data.addOnName,
-              data.eventTitle,
-              data.venueName,
-              data.venueAddress,
-              data.eventStartTime,
-              data.eventEndTime,
-              data.ticketId,
-              data.costItemId,
-              data.qrCode,
-              data.ticketStatus,
-              data.paymentStatus,
-              data.totalTicketPrice,
-              data.faceValuePrice,
-              data.fees,
-              data.currency,
-            ];
-            
-            // Update the specific row
-            await sheets.spreadsheets.values.update({
-              spreadsheetId: SPREADSHEET_ID,
-              range: `${SHEET_NAME}!A${rowIndex + 1}:W${rowIndex + 1}`,
-              valueInputOption: 'USER_ENTERED',
-              resource: { values: [updatedRow] },
-            });
-            
-            console.log(`Updated row ${rowIndex + 1} successfully`);
+          if (matchingRowIndices.length > 0) {
+            // Update ALL rows for this ticket ID
+            for (const rowIndex of matchingRowIndices) {
+              console.log(`Updating existing row at index ${rowIndex + 1} for ticket ${data.ticketId}`);
+              
+              // Get the existing row to preserve cost_item_id (since we're updating by ticket_id)
+              const existingRow = rows[rowIndex];
+              const existingCostItemId = existingRow[headers.indexOf('Cost Item ID')] || '';
+              
+              // Prepare updated row data (23 columns) - preserve the original cost item ID
+              const updatedRow = [
+                data.purchaseDate,
+                data.purchaseTime,
+                data.eventDate,
+                data.eventTime,
+                data.attendeeName,
+                data.email,
+                data.mailingAddress,
+                data.ticketName,
+                data.addOnName,
+                data.eventTitle,
+                data.venueName,
+                data.venueAddress,
+                data.eventStartTime,
+                data.eventEndTime,
+                data.ticketId,
+                existingCostItemId, // Keep the original cost item ID for this specific row
+                data.qrCode,
+                data.ticketStatus,
+                data.paymentStatus,
+                data.totalTicketPrice,
+                data.faceValuePrice,
+                data.fees,
+                data.currency,
+              ];
+              
+              // Update the specific row
+              await sheets.spreadsheets.values.update({
+                spreadsheetId: SPREADSHEET_ID,
+                range: `${SHEET_NAME}!A${rowIndex + 1}:W${rowIndex + 1}`,
+                valueInputOption: 'USER_ENTERED',
+                resource: { values: [updatedRow] },
+              });
+              
+              console.log(`Updated row ${rowIndex + 1} successfully`);
+            }
           } else {
-            console.log(`No existing row found for cost item ${data.costItemId}, appending new row`);
+            console.log(`No existing rows found for ticket ${data.ticketId}, appending new row`);
             
             // Append as new row if not found (23 columns)
             const values = [[
