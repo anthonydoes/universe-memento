@@ -54,22 +54,27 @@ function extractTicketData(payload) {
     // Get all cost items for this ticket
     const costItems = payload.cost_items?.filter(ci => ticket.cost_item_ids?.includes(ci.id)) || [];
     
+    // Separate primary tickets from add-ons
+    const primaryTickets = costItems.filter(item => 
+      item.is_add_on === false || item.rate_type === 'Rate'
+    );
+    const addOns = costItems.filter(item => 
+      item.is_add_on === true || item.rate_type === 'AddOnRate'
+    );
+    
     // Check if this ticket has the target add-on
     const targetTicketType = process.env.TARGET_TICKET_TYPE;
     console.log(`\nChecking ticket ${ticket.id} for add-on "${targetTicketType}"`);
     
-    const hasTargetAddon = costItems.some(item => {
+    const hasTargetAddon = addOns.some(item => {
       const rate = payload.rates?.find(r => r.id === item.rate_id);
       const itemName = rate?.name || item.name || '';
-      console.log(`  Cost item: "${itemName}", is_add_on: ${item.is_add_on}, rate_type: ${item.rate_type}`);
+      console.log(`  Add-on: "${itemName}", is_add_on: ${item.is_add_on}, rate_type: ${item.rate_type}`);
       
-      // Check if it's an add-on that contains "Memento Ticket" (case-insensitive)
+      // Check if it contains "Memento Ticket" (case-insensitive)
       const containsMementoTicket = itemName.toLowerCase().includes('memento ticket');
       console.log(`  Contains "memento ticket": ${containsMementoTicket}`);
-      console.log(`  Match check: contains("memento ticket") && ${item.is_add_on} === true`);
-      const matches = containsMementoTicket && item.is_add_on === true;
-      console.log(`  Result: ${matches}`);
-      return matches;
+      return containsMementoTicket;
     });
     
     console.log(`Ticket ${ticket.id} has target add-on: ${hasTargetAddon}`);
@@ -79,60 +84,87 @@ function extractTicketData(payload) {
       continue;
     }
     
-    // Find the main ticket (non-add-on) for primary info
-    const mainTicket = costItems.find(item => !item.is_add_on) || costItems[0];
-    console.log(`Main ticket found: ${mainTicket?.name}, is_add_on: ${mainTicket?.is_add_on}`);
+    // Get primary ticket (non-add-on) for primary info
+    const primaryTicket = primaryTickets[0] || costItems[0];
+    console.log(`Primary ticket found: ${primaryTicket?.name}, is_add_on: ${primaryTicket?.is_add_on}`);
     
     // Find address from host_fields
     let address = '';
+    let city = '';
+    let state = '';
+    let zip = '';
     if (payload.host_fields && ticket.host_field_ids) {
       const addressField = payload.host_fields.find(hf => 
         ticket.host_field_ids.includes(hf.id) && 
         hf.name === 'Address'
       );
-      address = addressField?.value || '';
+      if (addressField?.value) {
+        address = addressField.value;
+        // Parse address components
+        const addressParts = address.split(',').map(s => s.trim());
+        if (addressParts.length >= 3) {
+          // Assumes format: "Street, City, State ZIP, Country"
+          city = addressParts[addressParts.length - 3] || '';
+          const stateZip = addressParts[addressParts.length - 2] || '';
+          const stateZipMatch = stateZip.match(/([A-Z]{2})\s+(\d{5}(?:-\d{4})?)/);
+          if (stateZipMatch) {
+            state = stateZipMatch[1];
+            zip = stateZipMatch[2];
+          }
+        }
+      }
     }
 
-    // Get main ticket rate info
-    const mainRate = payload.rates?.find(r => r.id === mainTicket.rate_id);
-    console.log(`Main rate: ${mainRate?.name}, main ticket name: ${mainTicket?.name}`);
+    // Get primary ticket rate info
+    const primaryRate = payload.rates?.find(r => r.id === primaryTicket.rate_id);
+    const primaryTicketName = primaryRate?.name || primaryTicket.name || '';
+    console.log(`Primary rate: ${primaryRate?.name}, primary ticket name: ${primaryTicket?.name}`);
     
-    // Find the Memento Ticket add-on for display and pricing
-    const mementoAddon = costItems.find(item => {
-      const rate = payload.rates?.find(r => r.id === item.rate_id);
-      const itemName = rate?.name || item.name || '';
-      return itemName.toLowerCase().includes('memento ticket') && item.is_add_on === true;
-    });
-    const mementoRate = mementoAddon ? payload.rates?.find(r => r.id === mementoAddon.rate_id) : null;
-    const mementoName = mementoRate?.name || mementoAddon?.name || 'Memento Ticket';
-    console.log(`Memento add-on: ${mementoName}, price: ${mementoRate?.price || mementoAddon?.src_price || 0}`);
+    // Get all add-on names
+    const addOnNames = addOns.map(addon => {
+      const rate = payload.rates?.find(r => r.id === addon.rate_id);
+      return rate?.name || addon.name || '';
+    }).filter(name => name).join(', ');
     
-    // Create one record per ticket (not per cost item)
+    // Find venue information
+    const venueName = payload.listings?.[0]?.venue_name || '';
+    const venueAddress = payload.listings?.[0]?.address || '';
+    
+    // Calculate total price (for now, just use primary ticket price)
+    const price = parseFloat(primaryRate?.price || primaryRate?.src_price || primaryTicket?.src_price || 0);
+    
+    // Create one record per ticket
     const ticketData = {
       purchaseDate: new Date(ticket.created_at).toLocaleDateString('en-US', { timeZone: 'America/New_York' }),
       purchaseTime: new Date(ticket.created_at).toLocaleTimeString('en-US', { timeZone: 'America/New_York' }),
       eventDate: new Date(event.start_stamp * 1000).toLocaleDateString(),
       eventTime: new Date(event.start_stamp * 1000).toLocaleTimeString(),
-      attendeeName: `${mainTicket.first_name || mainTicket.guest_first_name || ''} ${mainTicket.last_name || mainTicket.guest_last_name || ''}`.trim(),
-      email: mainTicket.guest_email || ticket.buyer_email || '',
+      attendeeName: `${primaryTicket.first_name || primaryTicket.guest_first_name || ''} ${primaryTicket.last_name || primaryTicket.guest_last_name || ''}`.trim(),
+      email: primaryTicket.guest_email || ticket.buyer_email || '',
+      phone: '', // Not available in current payload
       address: address,
-      rateName: `${mainRate?.name || mainTicket.name || ''} + ${mementoName}`,
+      city: city,
+      state: state,
+      zip: zip,
+      ticketName: primaryTicketName, // Primary ticket only
+      addOnName: addOnNames, // Add-ons only, comma-separated
       eventTitle: payload.listings?.[0]?.title || '',
-      eventAddress: payload.listings?.[0]?.address || '',
-      hostName: payload.listings?.[0]?.host_name || '',
+      venueName: venueName,
+      venueAddress: venueAddress,
       eventStartTime: new Date(event.start_stamp * 1000).toISOString(),
       eventEndTime: new Date(event.end_stamp * 1000).toISOString(),
       ticketId: ticket.id,
-      costItemId: mainTicket.id,
-      ticketStatus: mainTicket.state || ticket.state || '',
+      costItemId: primaryTicket.id, // Use primary ticket's cost item ID
+      qrCode: primaryTicket.qr_code || '',
+      ticketStatus: primaryTicket.state || ticket.state || '',
       paymentStatus: ticket.payment_state || '',
-      price: parseFloat(mementoRate?.price || mementoRate?.src_price || mementoAddon?.src_price || 0),
+      price: price,
       currency: ticket.src_currency || 'USD',
-      quantity: mainRate?.qty || 1,
     };
 
-    console.log(`Adding ticket record: ${ticketData.ticketId} - ${ticketData.rateName}`);
-    console.log(`Record details: attendee=${ticketData.attendeeName}, cost_item_id=${ticketData.costItemId}`);
+    console.log(`Adding ticket record: ${ticketData.ticketId}`);
+    console.log(`Primary ticket: ${ticketData.ticketName}, Add-ons: ${ticketData.addOnName}`);
+    console.log(`Venue: ${ticketData.venueName} at ${ticketData.venueAddress}`);
     results.push(ticketData);
   }
 
@@ -147,7 +179,7 @@ export const config = {
   },
 };
 
-// Serverless function handler
+// Vercel serverless function handler  
 export default async function handler(req, res) {
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -179,7 +211,7 @@ export default async function handler(req, res) {
     // Get raw body for signature verification
     const rawBody = await getRawBody(req);
     
-    const signature = req.headers['x-uniiverse-signature'];
+    const signature = req.headers['x-universe-signature'];
     const secret = process.env.UNIVERSE_WEBHOOK_SECRET;
     
     console.log('=== WEBHOOK RECEIVED ===');
@@ -223,41 +255,165 @@ export default async function handler(req, res) {
     }
 
     if (filteredTicketData.length > 0) {
-      // Append data to Google Sheets
-      const values = filteredTicketData.map(data => [
-        data.purchaseDate,
-        data.purchaseTime,
-        data.eventDate,
-        data.eventTime,
-        data.attendeeName,
-        data.email,
-        data.address,
-        data.rateName,
-        data.eventTitle,
-        data.eventAddress,
-        data.hostName,
-        data.eventStartTime,
-        data.eventEndTime,
-        data.ticketId,
-        data.costItemId,
-        data.ticketStatus,
-        data.paymentStatus,
-        data.price,
-        data.currency,
-        data.quantity,
-      ]);
-
-      await sheets.spreadsheets.values.append({
-        spreadsheetId: SPREADSHEET_ID,
-        range: `${SHEET_NAME}!A:T`,
-        valueInputOption: 'USER_ENTERED',
-        requestBody: { values },
-      });
+      // Check event type
+      const eventType = payload.event || 'ticket_purchase';
+      console.log(`Event type: ${eventType}`);
       
-      console.log(`${values.length} row(s) appended to sheet successfully`);
+      if (eventType === 'ticket_update') {
+        // Update existing rows
+        console.log('Processing ticket update event');
+        
+        for (const data of filteredTicketData) {
+          // Read all rows to find the one to update
+          const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: `${SHEET_NAME}!A:Z`,
+          });
+          
+          const rows = response.data.values || [];
+          const headers = rows[0] || [];
+          const costItemIdIndex = headers.indexOf('Cost Item ID');
+          
+          if (costItemIdIndex === -1) {
+            console.error('Cost Item ID column not found in sheet');
+            continue;
+          }
+          
+          // Find row with matching cost item ID
+          let rowIndex = -1;
+          for (let i = 1; i < rows.length; i++) {
+            if (rows[i][costItemIdIndex] === data.costItemId) {
+              rowIndex = i;
+              break;
+            }
+          }
+          
+          if (rowIndex > 0) {
+            console.log(`Found existing row at index ${rowIndex + 1} for cost item ${data.costItemId}`);
+            
+            // Prepare updated row data
+            const updatedRow = [
+              data.purchaseDate,
+              data.purchaseTime,
+              data.eventDate,
+              data.eventTime,
+              data.attendeeName,
+              data.email,
+              data.phone,
+              data.address,
+              data.city,
+              data.state,
+              data.zip,
+              data.ticketName,
+              data.addOnName,
+              data.eventTitle,
+              data.venueName,
+              data.venueAddress,
+              data.eventStartTime,
+              data.eventEndTime,
+              data.ticketId,
+              data.costItemId,
+              data.qrCode,
+              data.ticketStatus,
+              data.paymentStatus,
+              data.price,
+              data.currency,
+            ];
+            
+            // Update the specific row
+            await sheets.spreadsheets.values.update({
+              spreadsheetId: SPREADSHEET_ID,
+              range: `${SHEET_NAME}!A${rowIndex + 1}:Z${rowIndex + 1}`,
+              valueInputOption: 'USER_ENTERED',
+              resource: { values: [updatedRow] },
+            });
+            
+            console.log(`Updated row ${rowIndex + 1} successfully`);
+          } else {
+            console.log(`No existing row found for cost item ${data.costItemId}, appending new row`);
+            
+            // Append as new row if not found
+            const values = [[
+              data.purchaseDate,
+              data.purchaseTime,
+              data.eventDate,
+              data.eventTime,
+              data.attendeeName,
+              data.email,
+              data.phone,
+              data.address,
+              data.city,
+              data.state,
+              data.zip,
+              data.ticketName,
+              data.addOnName,
+              data.eventTitle,
+              data.venueName,
+              data.venueAddress,
+              data.eventStartTime,
+              data.eventEndTime,
+              data.ticketId,
+              data.costItemId,
+              data.qrCode,
+              data.ticketStatus,
+              data.paymentStatus,
+              data.price,
+              data.currency,
+            ]];
+            
+            await sheets.spreadsheets.values.append({
+              spreadsheetId: SPREADSHEET_ID,
+              range: `${SHEET_NAME}!A:Z`,
+              valueInputOption: 'USER_ENTERED',
+              requestBody: { values },
+            });
+          }
+        }
+        
+        console.log(`Processed ${filteredTicketData.length} ticket update(s)`);
+      } else {
+        // Append new data for ticket_purchase events
+        const values = filteredTicketData.map(data => [
+          data.purchaseDate,
+          data.purchaseTime,
+          data.eventDate,
+          data.eventTime,
+          data.attendeeName,
+          data.email,
+          data.phone,
+          data.address,
+          data.city,
+          data.state,
+          data.zip,
+          data.ticketName,
+          data.addOnName,
+          data.eventTitle,
+          data.venueName,
+          data.venueAddress,
+          data.eventStartTime,
+          data.eventEndTime,
+          data.ticketId,
+          data.costItemId,
+          data.qrCode,
+          data.ticketStatus,
+          data.paymentStatus,
+          data.price,
+          data.currency,
+        ]);
+
+        await sheets.spreadsheets.values.append({
+          spreadsheetId: SPREADSHEET_ID,
+          range: `${SHEET_NAME}!A:Z`,
+          valueInputOption: 'USER_ENTERED',
+          requestBody: { values },
+        });
+        
+        console.log(`${values.length} row(s) appended to sheet successfully`);
+      }
+      
       return res.status(200).json({ 
         status: 'success', 
-        message: `Processed ${filteredTicketData.length} ticket(s)` 
+        message: `Processed ${filteredTicketData.length} ticket(s) (${eventType})` 
       });
     }
     

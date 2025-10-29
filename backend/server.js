@@ -11,10 +11,12 @@ const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors());
-app.use(express.json());
 
-// Mount webhook app
+// Mount webhook app first (needs raw body)
 app.use(webhookApp);
+
+// Then apply JSON parsing for other routes
+app.use(express.json());
 
 // Mount data API routes
 app.use('/api', dataRouter);
