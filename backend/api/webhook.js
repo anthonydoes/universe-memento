@@ -163,8 +163,14 @@ function extractTicketData(payload) {
     };
 
     console.log(`Adding ticket record: ${ticketData.ticketId}`);
-    console.log(`Primary ticket: ${ticketData.ticketName}, Add-ons: ${ticketData.addOnName}`);
+    console.log(`Primary ticket: "${ticketData.ticketName}", Add-ons: "${ticketData.addOnName}"`);
     console.log(`Venue: ${ticketData.venueName} at ${ticketData.venueAddress}`);
+    console.log(`DEBUG - Row data mapping:`, {
+      ticketName: ticketData.ticketName,
+      addOnName: ticketData.addOnName,
+      primaryTicketName,
+      addOnNames
+    });
     results.push(ticketData);
   }
 
@@ -246,7 +252,8 @@ export default async function handler(req, res) {
     // Log details about what was found
     if (filteredTicketData.length > 0) {
       console.log('Matching tickets:', filteredTicketData.map(t => ({ 
-        rateName: t.rateName, 
+        ticketName: t.ticketName,
+        addOnName: t.addOnName,
         attendee: t.attendeeName,
         ticketId: t.ticketId 
       })));
