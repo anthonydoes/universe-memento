@@ -19,59 +19,39 @@ export default function TicketTable({ filters }) {
   const columns = useMemo(
     () => [
       {
-        accessorKey: 'ticketId',
-        header: 'Order ID',
-        size: 120,
-      },
-      {
-        accessorKey: 'purchaseDate',
+        accessorKey: 'Purchase Date',
         header: 'Purchase Date',
         cell: (info) => formatDate(info.getValue()),
         size: 120,
       },
       {
-        accessorKey: 'purchaseTime',
+        accessorKey: 'Purchase Time',
         header: 'Purchase Time',
         size: 120,
       },
       {
-        accessorKey: 'attendeeName',
-        header: 'Attendee Name',
-        size: 160,
-      },
-      {
-        accessorKey: 'email',
-        header: 'Email',
-        size: 200,
-      },
-      {
-        accessorKey: 'address',
-        header: 'Buyer Address',
-        size: 250,
-        cell: (info) => (
-          <div className="max-w-xs truncate" title={info.getValue()}>
-            {info.getValue() || '-'}
-          </div>
-        ),
-      },
-      {
-        accessorKey: 'eventTitle',
-        header: 'Event Title',
-        size: 200,
-      },
-      {
-        accessorKey: 'eventDate',
+        accessorKey: 'Event Date',
         header: 'Event Date',
         size: 120,
       },
       {
-        accessorKey: 'eventTime',
+        accessorKey: 'Event Time',
         header: 'Event Time',
         size: 120,
       },
       {
-        accessorKey: 'eventAddress',
-        header: 'Event Address',
+        accessorKey: 'Attendee Name',
+        header: 'Attendee Name',
+        size: 160,
+      },
+      {
+        accessorKey: 'Email',
+        header: 'Email',
+        size: 200,
+      },
+      {
+        accessorKey: 'Mailing Address',
+        header: 'Mailing Address',
         size: 250,
         cell: (info) => (
           <div className="max-w-xs truncate" title={info.getValue()}>
@@ -80,56 +60,83 @@ export default function TicketTable({ filters }) {
         ),
       },
       {
-        accessorKey: 'venueName',
-        header: 'Venue',
+        accessorKey: 'Ticket Name',
+        header: 'Ticket Name',
         size: 150,
       },
       {
-        accessorKey: 'hostName',
-        header: 'Host Name',
-        size: 140,
-      },
-      {
-        accessorKey: 'ticketRateName',
-        header: 'Ticket Type',
-        size: 150,
-      },
-      {
-        accessorKey: 'addOnRateName',
-        header: 'Add-on',
+        accessorKey: 'Add-on Name',
+        header: 'Add-on Name',
         size: 150,
         cell: (info) => info.getValue() || '-',
       },
       {
-        accessorKey: 'quantity',
-        header: 'Qty',
-        cell: (info) => info.getValue() || 1,
-        size: 60,
+        accessorKey: 'Event Title',
+        header: 'Event Title',
+        size: 200,
       },
       {
-        accessorKey: 'price',
-        header: 'Price',
-        cell: (info) => formatCurrency(info.getValue()),
-        size: 100,
+        accessorKey: 'Host Name',
+        header: 'Host Name',
+        size: 140,
       },
       {
-        accessorKey: 'serviceFee',
-        header: 'Service Fee',
-        cell: (info) => formatCurrency(info.getValue()),
-        size: 100,
+        accessorKey: 'Venue Name',
+        header: 'Venue Name',
+        size: 150,
       },
       {
-        accessorKey: 'currency',
-        header: 'Currency',
-        size: 80,
+        accessorKey: 'Venue Address',
+        header: 'Venue Address',
+        size: 250,
+        cell: (info) => (
+          <div className="max-w-xs truncate" title={info.getValue()}>
+            {info.getValue() || '-'}
+          </div>
+        ),
       },
       {
-        accessorKey: 'ticketStatus',
+        accessorKey: 'Event Start Time',
+        header: 'Event Start Time',
+        size: 160,
+        cell: (info) => {
+          const value = info.getValue();
+          if (!value) return '-';
+          return new Date(value).toLocaleString();
+        },
+      },
+      {
+        accessorKey: 'Event End Time',
+        header: 'Event End Time',
+        size: 160,
+        cell: (info) => {
+          const value = info.getValue();
+          if (!value) return '-';
+          return new Date(value).toLocaleString();
+        },
+      },
+      {
+        accessorKey: 'Ticket ID',
+        header: 'Ticket ID',
+        size: 120,
+      },
+      {
+        accessorKey: 'Cost Item ID',
+        header: 'Cost Item ID',
+        size: 120,
+      },
+      {
+        accessorKey: 'QR Code',
+        header: 'QR Code',
+        size: 120,
+      },
+      {
+        accessorKey: 'Ticket Status',
         header: 'Ticket Status',
         size: 120,
         cell: (info) => (
           <span className={`px-2 py-1 text-xs rounded-full ${
-            info.getValue() === 'paid' 
+            info.getValue() === 'success' 
               ? 'bg-green-100 text-green-800'
               : info.getValue() === 'cancelled'
               ? 'bg-red-100 text-red-800'
@@ -140,12 +147,12 @@ export default function TicketTable({ filters }) {
         ),
       },
       {
-        accessorKey: 'paymentStatus',
+        accessorKey: 'Payment Status',
         header: 'Payment Status',
         size: 120,
         cell: (info) => (
           <span className={`px-2 py-1 text-xs rounded-full ${
-            info.getValue() === 'paid' 
+            info.getValue() === 'success' 
               ? 'bg-green-100 text-green-800'
               : info.getValue() === 'pending'
               ? 'bg-yellow-100 text-yellow-800'
@@ -158,29 +165,27 @@ export default function TicketTable({ filters }) {
         ),
       },
       {
-        accessorKey: 'costItemId',
-        header: 'Cost Item ID',
+        accessorKey: 'Total Ticket Price',
+        header: 'Total Price (with fees)',
+        cell: (info) => formatCurrency(info.getValue()),
         size: 120,
       },
       {
-        accessorKey: 'eventStartTime',
-        header: 'Event Start Time',
-        size: 160,
-        cell: (info) => {
-          const value = info.getValue();
-          if (!value) return '-';
-          return new Date(value).toLocaleString();
-        },
+        accessorKey: 'Face Value Price',
+        header: 'Face Value Price',
+        cell: (info) => formatCurrency(info.getValue()),
+        size: 120,
       },
       {
-        accessorKey: 'eventEndTime',
-        header: 'Event End Time',
-        size: 160,
-        cell: (info) => {
-          const value = info.getValue();
-          if (!value) return '-';
-          return new Date(value).toLocaleString();
-        },
+        accessorKey: 'Fees',
+        header: 'Fees',
+        cell: (info) => formatCurrency(info.getValue()),
+        size: 100,
+      },
+      {
+        accessorKey: 'Currency',
+        header: 'Currency',
+        size: 80,
       },
     ],
     []
