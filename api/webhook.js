@@ -34,6 +34,7 @@ function verifyWebhookSignature(payload, signature, secret) {
 function extractTicketData(payload) {
   console.log('=== EXTRACT TICKET DATA CALLED ===');
   const results = [];
+  const processedTicketIds = new Set(); // Track processed tickets to prevent duplicates
   
   // Process each ticket in the tickets array
   if (!payload.tickets || !Array.isArray(payload.tickets)) {
@@ -44,6 +45,13 @@ function extractTicketData(payload) {
   console.log(`Processing ${payload.tickets.length} ticket(s) from payload`);
 
   for (const ticket of payload.tickets) {
+    // Check for duplicate tickets
+    if (processedTicketIds.has(ticket.id)) {
+      console.log(`Skipping duplicate ticket ${ticket.id}`);
+      continue;
+    }
+    processedTicketIds.add(ticket.id);
+    
     // Find the related event
     const event = payload.events?.find(e => e.id === ticket.event_id);
     if (!event) {
@@ -105,18 +113,38 @@ function extractTicketData(payload) {
     const primaryTicketName = primaryRate?.name || primaryTicket.name || '';
     console.log(`Primary rate: ${primaryRate?.name}, primary ticket name: ${primaryTicket?.name}`);
     
-    // Get all add-on names
-    const addOnNames = addOns.map(addon => {
+    // Get all add-on names with quantities
+    const addOnCounts = {};
+    addOns.forEach(addon => {
       const rate = payload.rates?.find(r => r.id === addon.rate_id);
-      return rate?.name || addon.name || '';
-    }).filter(name => name).join(', ');
+      const name = rate?.name || addon.name || '';
+      if (name) {
+        addOnCounts[name] = (addOnCounts[name] || 0) + 1;
+      }
+    });
+    
+    const addOnNames = Object.entries(addOnCounts)
+      .map(([name, count]) => count > 1 ? `${name} (${count})` : name)
+      .join(', ');
     
     // Find venue information
     const venueName = payload.listings?.[0]?.venue_name || '';
     const venueAddress = payload.listings?.[0]?.address || '';
     
-    // Calculate total price (for now, just use primary ticket price)
-    const price = parseFloat(primaryRate?.price || primaryRate?.src_price || primaryTicket?.src_price || 0);
+    // Calculate pricing breakdown for ALL cost items in this ticket
+    const totalFaceValue = costItems.reduce((sum, item) => {
+      const rate = payload.rates?.find(r => r.id === item.rate_id);
+      const price = parseFloat(rate?.src_price || item.src_price || 0);
+      return sum + price;
+    }, 0);
+    
+    const totalOrderPrice = parseFloat(ticket.price || ticket.src_price || 0);
+    const totalFees = Math.max(0, totalOrderPrice - totalFaceValue);
+    
+    console.log(`Pricing breakdown for ticket ${ticket.id} (${costItems.length} items):`);
+    console.log(`  Total face value: $${totalFaceValue} (sum of all ${costItems.length} items)`);
+    console.log(`  Total order price: $${totalOrderPrice}`);
+    console.log(`  Total fees: $${totalFees}`);
     
     // Create one record per ticket
     const ticketData = {
@@ -128,7 +156,7 @@ function extractTicketData(payload) {
       email: primaryTicket.guest_email || ticket.buyer_email || '',
       mailingAddress: mailingAddress,
       ticketName: primaryTicketName, // Primary ticket only
-      addOnName: addOnNames, // Add-ons only, comma-separated
+      addOnName: addOnNames, // Add-ons with quantities, comma-separated
       eventTitle: payload.listings?.[0]?.title || '',
       venueName: venueName,
       venueAddress: venueAddress,
@@ -139,13 +167,16 @@ function extractTicketData(payload) {
       qrCode: primaryTicket.qr_code || '',
       ticketStatus: primaryTicket.state || ticket.state || '',
       paymentStatus: ticket.payment_state || '',
-      price: price,
+      totalTicketPrice: totalOrderPrice,
+      faceValuePrice: totalFaceValue,
+      fees: totalFees,
       currency: ticket.src_currency || 'USD',
     };
 
     console.log(`Adding ticket record: ${ticketData.ticketId}`);
     console.log(`Primary ticket: "${ticketData.ticketName}", Add-ons: "${ticketData.addOnName}"`);
     console.log(`Venue: ${ticketData.venueName} at ${ticketData.venueAddress}`);
+    console.log(`Pricing: Total=$${ticketData.totalTicketPrice}, Face=$${ticketData.faceValuePrice}, Fees=$${ticketData.fees}`);
     console.log(`DEBUG - Row data mapping:`, {
       ticketName: ticketData.ticketName,
       addOnName: ticketData.addOnName,
@@ -167,7 +198,7 @@ export const config = {
 };
 
 // Vercel serverless function handler  
-// Deploy timestamp: 2025-10-29T01:30:00.000Z
+// Deploy timestamp: 2025-10-29T02:00:00.000Z
 export default async function handler(req, res) {
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -202,7 +233,7 @@ export default async function handler(req, res) {
     const signature = req.headers['x-uniiverse-signature'];
     const secret = process.env.UNIVERSE_WEBHOOK_SECRET;
     
-    console.log('=== WEBHOOK RECEIVED (v3.0 - Mailing Address + Fixed Columns) ===');
+    console.log('=== WEBHOOK RECEIVED (v5.0 - Fixed Quantities + Total Pricing) ===');
     console.log('Timestamp:', new Date().toISOString());
     console.log('Headers:', JSON.stringify(req.headers, null, 2));
     console.log('Signature present:', !!signature);
@@ -237,7 +268,10 @@ export default async function handler(req, res) {
         ticketName: t.ticketName,
         addOnName: t.addOnName,
         attendee: t.attendeeName,
-        ticketId: t.ticketId 
+        ticketId: t.ticketId,
+        totalPrice: t.totalTicketPrice,
+        faceValue: t.faceValuePrice,
+        fees: t.fees
       })));
     } else {
       console.log('No tickets found with the target add-on');
@@ -280,7 +314,7 @@ export default async function handler(req, res) {
           if (rowIndex > 0) {
             console.log(`Found existing row at index ${rowIndex + 1} for cost item ${data.costItemId}`);
             
-            // Prepare updated row data (21 columns)
+            // Prepare updated row data (23 columns)
             const updatedRow = [
               data.purchaseDate,
               data.purchaseTime,
@@ -301,14 +335,16 @@ export default async function handler(req, res) {
               data.qrCode,
               data.ticketStatus,
               data.paymentStatus,
-              data.price,
+              data.totalTicketPrice,
+              data.faceValuePrice,
+              data.fees,
               data.currency,
             ];
             
             // Update the specific row
             await sheets.spreadsheets.values.update({
               spreadsheetId: SPREADSHEET_ID,
-              range: `${SHEET_NAME}!A${rowIndex + 1}:U${rowIndex + 1}`,
+              range: `${SHEET_NAME}!A${rowIndex + 1}:W${rowIndex + 1}`,
               valueInputOption: 'USER_ENTERED',
               resource: { values: [updatedRow] },
             });
@@ -317,7 +353,7 @@ export default async function handler(req, res) {
           } else {
             console.log(`No existing row found for cost item ${data.costItemId}, appending new row`);
             
-            // Append as new row if not found (21 columns)
+            // Append as new row if not found (23 columns)
             const values = [[
               data.purchaseDate,
               data.purchaseTime,
@@ -338,13 +374,15 @@ export default async function handler(req, res) {
               data.qrCode,
               data.ticketStatus,
               data.paymentStatus,
-              data.price,
+              data.totalTicketPrice,
+              data.faceValuePrice,
+              data.fees,
               data.currency,
             ]];
             
             await sheets.spreadsheets.values.append({
               spreadsheetId: SPREADSHEET_ID,
-              range: `${SHEET_NAME}!A:U`,
+              range: `${SHEET_NAME}!A:W`,
               valueInputOption: 'USER_ENTERED',
               requestBody: { values },
             });
@@ -353,7 +391,7 @@ export default async function handler(req, res) {
         
         console.log(`Processed ${filteredTicketData.length} ticket update(s)`);
       } else {
-        // Append new data for ticket_purchase events (21 columns)
+        // Append new data for ticket_purchase events (23 columns)
         const values = filteredTicketData.map(data => [
           data.purchaseDate,
           data.purchaseTime,
@@ -374,13 +412,15 @@ export default async function handler(req, res) {
           data.qrCode,
           data.ticketStatus,
           data.paymentStatus,
-          data.price,
+          data.totalTicketPrice,
+          data.faceValuePrice,
+          data.fees,
           data.currency,
         ]);
 
         await sheets.spreadsheets.values.append({
           spreadsheetId: SPREADSHEET_ID,
-          range: `${SHEET_NAME}!A:U`,
+          range: `${SHEET_NAME}!A:W`,
           valueInputOption: 'USER_ENTERED',
           requestBody: { values },
         });
