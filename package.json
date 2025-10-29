@@ -1,0 +1,9 @@
+{
+  "name": "universe-analytics",
+  "version": "1.0.0",
+  "description": "Universe webhook integration and analytics",
+  "type": "module",
+  "dependencies": {
+    "googleapis": "^128.0.0"
+  }
+}
