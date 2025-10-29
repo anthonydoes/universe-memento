@@ -88,54 +88,16 @@ function extractTicketData(payload) {
     const primaryTicket = primaryTickets[0] || costItems[0];
     console.log(`Primary ticket found: ${primaryTicket?.name}, is_add_on: ${primaryTicket?.is_add_on}`);
     
-    // Find address from host_fields
-    let address = '';
-    let city = '';
-    let state = '';
-    let zip = '';
-    
-    console.log(`\nDEBUG - Address parsing for ticket ${ticket.id}:`);
-    console.log('host_fields available:', !!payload.host_fields);
-    console.log('ticket.host_field_ids:', ticket.host_field_ids);
-    
-    if (payload.host_fields) {
-      console.log('Available host_fields:', payload.host_fields.map(hf => ({ name: hf.name, id: hf.id })));
-    }
-    
+    // Find mailing address from host_fields
+    let mailingAddress = '';
     if (payload.host_fields && ticket.host_field_ids) {
       const addressField = payload.host_fields.find(hf => 
         ticket.host_field_ids.includes(hf.id) && 
-        hf.name === 'Address'
+        (hf.name === 'Mailing Address' || hf.name === 'Address') // Support both for transition
       );
-      
-      console.log('Found address field:', !!addressField);
-      
       if (addressField?.value) {
-        address = addressField.value;
-        console.log('Full address:', address);
-        
-        // Parse address components
-        const addressParts = address.split(',').map(s => s.trim());
-        console.log('Address parts:', addressParts);
-        
-        if (addressParts.length >= 3) {
-          // Assumes format: "Street, City, State ZIP, Country"
-          city = addressParts[addressParts.length - 3] || '';
-          const stateZip = addressParts[addressParts.length - 2] || '';
-          const stateZipMatch = stateZip.match(/([A-Z]{2})\s+(\d{5}(?:-\d{4})?)/);
-          if (stateZipMatch) {
-            state = stateZipMatch[1];
-            zip = stateZipMatch[2];
-          }
-          console.log(`Parsed - City: "${city}", State: "${state}", ZIP: "${zip}"`);
-        } else {
-          console.log('Address parts < 3, cannot parse city/state/zip');
-        }
-      } else {
-        console.log('No address field value found');
+        mailingAddress = addressField.value;
       }
-    } else {
-      console.log('No host_fields or host_field_ids available');
     }
 
     // Get primary ticket rate info
@@ -164,10 +126,7 @@ function extractTicketData(payload) {
       eventTime: new Date(event.start_stamp * 1000).toLocaleTimeString(),
       attendeeName: `${primaryTicket.first_name || primaryTicket.guest_first_name || ''} ${primaryTicket.last_name || primaryTicket.guest_last_name || ''}`.trim(),
       email: primaryTicket.guest_email || ticket.buyer_email || '',
-      address: address,
-      city: city,
-      state: state,
-      zip: zip,
+      mailingAddress: mailingAddress,
       ticketName: primaryTicketName, // Primary ticket only
       addOnName: addOnNames, // Add-ons only, comma-separated
       eventTitle: payload.listings?.[0]?.title || '',
@@ -208,7 +167,7 @@ export const config = {
 };
 
 // Vercel serverless function handler  
-// Deploy timestamp: 2025-10-29T00:52:00.000Z
+// Deploy timestamp: 2025-10-29T01:30:00.000Z
 export default async function handler(req, res) {
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -243,7 +202,7 @@ export default async function handler(req, res) {
     const signature = req.headers['x-uniiverse-signature'];
     const secret = process.env.UNIVERSE_WEBHOOK_SECRET;
     
-    console.log('=== WEBHOOK RECEIVED (v2.0 - Fixed Field Mapping) ===');
+    console.log('=== WEBHOOK RECEIVED (v3.0 - Mailing Address + Fixed Columns) ===');
     console.log('Timestamp:', new Date().toISOString());
     console.log('Headers:', JSON.stringify(req.headers, null, 2));
     console.log('Signature present:', !!signature);
@@ -321,7 +280,7 @@ export default async function handler(req, res) {
           if (rowIndex > 0) {
             console.log(`Found existing row at index ${rowIndex + 1} for cost item ${data.costItemId}`);
             
-            // Prepare updated row data
+            // Prepare updated row data (21 columns)
             const updatedRow = [
               data.purchaseDate,
               data.purchaseTime,
@@ -329,10 +288,7 @@ export default async function handler(req, res) {
               data.eventTime,
               data.attendeeName,
               data.email,
-              data.address,
-              data.city,
-              data.state,
-              data.zip,
+              data.mailingAddress,
               data.ticketName,
               data.addOnName,
               data.eventTitle,
@@ -352,7 +308,7 @@ export default async function handler(req, res) {
             // Update the specific row
             await sheets.spreadsheets.values.update({
               spreadsheetId: SPREADSHEET_ID,
-              range: `${SHEET_NAME}!A${rowIndex + 1}:Z${rowIndex + 1}`,
+              range: `${SHEET_NAME}!A${rowIndex + 1}:U${rowIndex + 1}`,
               valueInputOption: 'USER_ENTERED',
               resource: { values: [updatedRow] },
             });
@@ -361,7 +317,7 @@ export default async function handler(req, res) {
           } else {
             console.log(`No existing row found for cost item ${data.costItemId}, appending new row`);
             
-            // Append as new row if not found
+            // Append as new row if not found (21 columns)
             const values = [[
               data.purchaseDate,
               data.purchaseTime,
@@ -369,10 +325,7 @@ export default async function handler(req, res) {
               data.eventTime,
               data.attendeeName,
               data.email,
-              data.address,
-              data.city,
-              data.state,
-              data.zip,
+              data.mailingAddress,
               data.ticketName,
               data.addOnName,
               data.eventTitle,
@@ -391,7 +344,7 @@ export default async function handler(req, res) {
             
             await sheets.spreadsheets.values.append({
               spreadsheetId: SPREADSHEET_ID,
-              range: `${SHEET_NAME}!A:Z`,
+              range: `${SHEET_NAME}!A:U`,
               valueInputOption: 'USER_ENTERED',
               requestBody: { values },
             });
@@ -400,7 +353,7 @@ export default async function handler(req, res) {
         
         console.log(`Processed ${filteredTicketData.length} ticket update(s)`);
       } else {
-        // Append new data for ticket_purchase events
+        // Append new data for ticket_purchase events (21 columns)
         const values = filteredTicketData.map(data => [
           data.purchaseDate,
           data.purchaseTime,
@@ -408,10 +361,7 @@ export default async function handler(req, res) {
           data.eventTime,
           data.attendeeName,
           data.email,
-          data.address,
-          data.city,
-          data.state,
-          data.zip,
+          data.mailingAddress,
           data.ticketName,
           data.addOnName,
           data.eventTitle,
@@ -430,7 +380,7 @@ export default async function handler(req, res) {
 
         await sheets.spreadsheets.values.append({
           spreadsheetId: SPREADSHEET_ID,
-          range: `${SHEET_NAME}!A:Z`,
+          range: `${SHEET_NAME}!A:U`,
           valueInputOption: 'USER_ENTERED',
           requestBody: { values },
         });
