@@ -198,7 +198,7 @@ export const config = {
 };
 
 // Vercel serverless function handler  
-// Deploy timestamp: 2025-10-29T02:00:00.000Z
+// Deploy timestamp: 2025-10-29T02:15:00.000Z
 export default async function handler(req, res) {
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -233,7 +233,7 @@ export default async function handler(req, res) {
     const signature = req.headers['x-uniiverse-signature'];
     const secret = process.env.UNIVERSE_WEBHOOK_SECRET;
     
-    console.log('=== WEBHOOK RECEIVED (v5.0 - Fixed Quantities + Total Pricing) ===');
+    console.log('=== WEBHOOK RECEIVED (v6.0 - Debug Row Updates) ===');
     console.log('Timestamp:', new Date().toISOString());
     console.log('Headers:', JSON.stringify(req.headers, null, 2));
     console.log('Signature present:', !!signature);
@@ -285,6 +285,13 @@ export default async function handler(req, res) {
       if (eventType === 'ticket_update') {
         // Update existing rows
         console.log('Processing ticket update event');
+        console.log('Full payload cost_items:', JSON.stringify(payload.cost_items, null, 2));
+        console.log('Full payload tickets:', JSON.stringify(payload.tickets, null, 2));
+        
+        console.log(`Processing ${filteredTicketData.length} ticket update(s):`);
+        filteredTicketData.forEach((data, index) => {
+          console.log(`  Ticket ${index + 1}: ID=${data.ticketId}, Cost Item ID=${data.costItemId}`);
+        });
         
         for (const data of filteredTicketData) {
           // Read all rows to find the one to update
@@ -297,18 +304,33 @@ export default async function handler(req, res) {
           const headers = rows[0] || [];
           const costItemIdIndex = headers.indexOf('Cost Item ID');
           
+          console.log('DEBUG - Row lookup:');
+          console.log('  Sheet headers:', headers);
+          console.log('  Cost Item ID column index:', costItemIdIndex);
+          console.log('  Looking for Cost Item ID:', data.costItemId);
+          console.log('  Total rows in sheet:', rows.length);
+          
           if (costItemIdIndex === -1) {
             console.error('Cost Item ID column not found in sheet');
+            console.error('Available headers:', headers);
             continue;
           }
           
           // Find row with matching cost item ID
           let rowIndex = -1;
           for (let i = 1; i < rows.length; i++) {
-            if (rows[i][costItemIdIndex] === data.costItemId) {
+            const cellValue = rows[i][costItemIdIndex];
+            console.log(`  Row ${i + 1}: Cost Item ID = "${cellValue}" (type: ${typeof cellValue}) (comparing to "${data.costItemId}" type: ${typeof data.costItemId})`);
+            // Try both string comparison and trimmed comparison
+            if (cellValue === data.costItemId || String(cellValue).trim() === String(data.costItemId).trim()) {
               rowIndex = i;
+              console.log(`  ✅ MATCH found at row ${i + 1}`);
               break;
             }
+          }
+          
+          if (rowIndex === -1) {
+            console.log('  ❌ NO MATCH found in any row');
           }
           
           if (rowIndex > 0) {
