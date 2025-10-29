@@ -185,6 +185,7 @@ export const config = {
 };
 
 // Vercel serverless function handler  
+// Deploy timestamp: 2025-10-29T00:52:00.000Z
 export default async function handler(req, res) {
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
