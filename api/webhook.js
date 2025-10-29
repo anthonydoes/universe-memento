@@ -93,15 +93,31 @@ function extractTicketData(payload) {
     let city = '';
     let state = '';
     let zip = '';
+    
+    console.log(`\nDEBUG - Address parsing for ticket ${ticket.id}:`);
+    console.log('host_fields available:', !!payload.host_fields);
+    console.log('ticket.host_field_ids:', ticket.host_field_ids);
+    
+    if (payload.host_fields) {
+      console.log('Available host_fields:', payload.host_fields.map(hf => ({ name: hf.name, id: hf.id })));
+    }
+    
     if (payload.host_fields && ticket.host_field_ids) {
       const addressField = payload.host_fields.find(hf => 
         ticket.host_field_ids.includes(hf.id) && 
         hf.name === 'Address'
       );
+      
+      console.log('Found address field:', !!addressField);
+      
       if (addressField?.value) {
         address = addressField.value;
+        console.log('Full address:', address);
+        
         // Parse address components
         const addressParts = address.split(',').map(s => s.trim());
+        console.log('Address parts:', addressParts);
+        
         if (addressParts.length >= 3) {
           // Assumes format: "Street, City, State ZIP, Country"
           city = addressParts[addressParts.length - 3] || '';
@@ -111,8 +127,15 @@ function extractTicketData(payload) {
             state = stateZipMatch[1];
             zip = stateZipMatch[2];
           }
+          console.log(`Parsed - City: "${city}", State: "${state}", ZIP: "${zip}"`);
+        } else {
+          console.log('Address parts < 3, cannot parse city/state/zip');
         }
+      } else {
+        console.log('No address field value found');
       }
+    } else {
+      console.log('No host_fields or host_field_ids available');
     }
 
     // Get primary ticket rate info
