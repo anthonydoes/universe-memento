@@ -43,6 +43,7 @@ function extractTicketData(payload) {
   }
   
   console.log(`Processing ${payload.tickets.length} ticket(s) from payload`);
+  console.log('All ticket IDs in payload:', payload.tickets.map(t => t.id));
 
   for (const ticket of payload.tickets) {
     // Check for duplicate tickets
@@ -183,7 +184,9 @@ function extractTicketData(payload) {
       primaryTicketName,
       addOnNames
     });
+    console.log(`DEBUG - Results array length before adding: ${results.length}`);
     results.push(ticketData);
+    console.log(`DEBUG - Results array length after adding: ${results.length}`);
   }
 
   return results;
@@ -233,7 +236,7 @@ export default async function handler(req, res) {
     const signature = req.headers['x-uniiverse-signature'];
     const secret = process.env.UNIVERSE_WEBHOOK_SECRET;
     
-    console.log('=== WEBHOOK RECEIVED (v8.0 - Fix Event Type Detection) ===');
+    console.log('=== WEBHOOK RECEIVED (v8.1 - Debug Duplicate Rows) ===');
     console.log('Timestamp:', new Date().toISOString());
     console.log('Headers:', JSON.stringify(req.headers, null, 2));
     console.log('Signature present:', !!signature);
