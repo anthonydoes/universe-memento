@@ -219,7 +219,7 @@ export default async function handler(req, res) {
     const signature = req.headers['x-universe-signature'];
     const secret = process.env.UNIVERSE_WEBHOOK_SECRET;
     
-    console.log('=== WEBHOOK RECEIVED ===');
+    console.log('=== WEBHOOK RECEIVED (v2.0 - Fixed Field Mapping) ===');
     console.log('Timestamp:', new Date().toISOString());
     console.log('Headers:', JSON.stringify(req.headers, null, 2));
     console.log('Signature present:', !!signature);
