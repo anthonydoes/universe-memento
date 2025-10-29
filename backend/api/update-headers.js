@@ -23,7 +23,7 @@ async function updateSheetHeaders() {
     const SPREADSHEET_ID = process.env.GOOGLE_SHEETS_ID;
     const SHEET_NAME = process.env.SHEET_NAME || 'Universe-Webhook-Data';
 
-    // Define the new headers (21 columns, removed City/State/ZIP)
+    // Define the new headers (21 columns, renamed Address to Mailing Address)
     const headers = [
       'Purchase Date',
       'Purchase Time',
@@ -31,7 +31,7 @@ async function updateSheetHeaders() {
       'Event Time',
       'Attendee Name',
       'Email',
-      'Address',
+      'Mailing Address',
       'Ticket Name',         // Primary ticket only
       'Add-on Name',         // Add-ons only, comma-separated
       'Event Title',
