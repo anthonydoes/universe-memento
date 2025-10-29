@@ -132,6 +132,9 @@ function extractTicketData(payload) {
     const venueName = payload.listings?.[0]?.venue_name || '';
     const venueAddress = payload.listings?.[0]?.address || '';
     
+    // Get host name from listings
+    const hostName = payload.listings?.[0]?.host_name || '';
+    
     // Calculate pricing breakdown for ALL cost items in this ticket
     const totalFaceValue = costItems.reduce((sum, item) => {
       const rate = payload.rates?.find(r => r.id === item.rate_id);
@@ -159,6 +162,7 @@ function extractTicketData(payload) {
       ticketName: primaryTicketName, // Primary ticket only
       addOnName: addOnNames, // Add-ons with quantities, comma-separated
       eventTitle: payload.listings?.[0]?.title || '',
+      hostName: hostName,
       venueName: venueName,
       venueAddress: venueAddress,
       eventStartTime: new Date(event.start_stamp * 1000).toISOString(),
@@ -236,7 +240,7 @@ export default async function handler(req, res) {
     const signature = req.headers['x-uniiverse-signature'];
     const secret = process.env.UNIVERSE_WEBHOOK_SECRET;
     
-    console.log('=== WEBHOOK RECEIVED (v8.1 - Debug Duplicate Rows) ===');
+    console.log('=== WEBHOOK RECEIVED (v9.0 - Add Host Name Field) ===');
     console.log('Timestamp:', new Date().toISOString());
     console.log('Headers:', JSON.stringify(req.headers, null, 2));
     console.log('Signature present:', !!signature);
@@ -356,7 +360,7 @@ export default async function handler(req, res) {
               const existingRow = rows[rowIndex];
               const existingCostItemId = existingRow[headers.indexOf('Cost Item ID')] || '';
               
-              // Prepare updated row data (23 columns) - preserve the original cost item ID
+              // Prepare updated row data (24 columns) - preserve the original cost item ID
               const updatedRow = [
                 data.purchaseDate,
                 data.purchaseTime,
@@ -368,6 +372,7 @@ export default async function handler(req, res) {
                 data.ticketName,
                 data.addOnName,
                 data.eventTitle,
+                data.hostName,
                 data.venueName,
                 data.venueAddress,
                 data.eventStartTime,
@@ -386,7 +391,7 @@ export default async function handler(req, res) {
               // Update the specific row
               await sheets.spreadsheets.values.update({
                 spreadsheetId: SPREADSHEET_ID,
-                range: `${SHEET_NAME}!A${rowIndex + 1}:W${rowIndex + 1}`,
+                range: `${SHEET_NAME}!A${rowIndex + 1}:X${rowIndex + 1}`,
                 valueInputOption: 'USER_ENTERED',
                 resource: { values: [updatedRow] },
               });
@@ -396,7 +401,7 @@ export default async function handler(req, res) {
           } else {
             console.log(`No existing rows found for ticket ${data.ticketId}, appending new row`);
             
-            // Append as new row if not found (23 columns)
+            // Append as new row if not found (24 columns)
             const values = [[
               data.purchaseDate,
               data.purchaseTime,
@@ -408,6 +413,7 @@ export default async function handler(req, res) {
               data.ticketName,
               data.addOnName,
               data.eventTitle,
+              data.hostName,
               data.venueName,
               data.venueAddress,
               data.eventStartTime,
@@ -425,7 +431,7 @@ export default async function handler(req, res) {
             
             await sheets.spreadsheets.values.append({
               spreadsheetId: SPREADSHEET_ID,
-              range: `${SHEET_NAME}!A:W`,
+              range: `${SHEET_NAME}!A:X`,
               valueInputOption: 'USER_ENTERED',
               requestBody: { values },
             });
@@ -434,7 +440,7 @@ export default async function handler(req, res) {
         
         console.log(`Processed ${filteredTicketData.length} ticket update(s)`);
       } else {
-        // Append new data for ticket_purchase events (23 columns)
+        // Append new data for ticket_purchase events (24 columns)
         const values = filteredTicketData.map(data => [
           data.purchaseDate,
           data.purchaseTime,
@@ -446,6 +452,7 @@ export default async function handler(req, res) {
           data.ticketName,
           data.addOnName,
           data.eventTitle,
+          data.hostName,
           data.venueName,
           data.venueAddress,
           data.eventStartTime,
@@ -463,7 +470,7 @@ export default async function handler(req, res) {
 
         await sheets.spreadsheets.values.append({
           spreadsheetId: SPREADSHEET_ID,
-          range: `${SHEET_NAME}!A:W`,
+          range: `${SHEET_NAME}!A:X`,
           valueInputOption: 'USER_ENTERED',
           requestBody: { values },
         });
