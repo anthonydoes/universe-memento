@@ -12,32 +12,45 @@ You just need to:
 
 ### 1. Add Headers to Your Sheet
 
-Copy this entire line and paste it into cell A1 of your sheet:
+**Option 1: Run the header update script**
+```bash
+cd backend
+node api/update-sheet-headers.js
 ```
-purchaseDate	purchaseTime	eventDate	eventTime	attendeeName	email	address	rateName	eventTitle	eventStartTime	eventEndTime	ticketId	costItemId	ticketStatus	paymentStatus	price	currency	quantity
+
+**Option 2: Copy and paste this line into cell A1:**
+```
+Purchase Date	Purchase Time	Event Date	Event Time	Attendee Name	Email	Phone	Address	City	State	ZIP	Ticket Name	Add-on Name	Event Title	Venue Name	Venue Address	Event Start Time	Event End Time	Ticket ID	Cost Item ID	QR Code	Ticket Status	Payment Status	Price	Currency
 ```
 
 Then use "Data > Split text to columns" with Tab as the delimiter.
 
-**OR** manually add these headers in row 1, columns A through R:
-- A1: purchaseDate
-- B1: purchaseTime
-- C1: eventDate
-- D1: eventTime
-- E1: attendeeName
-- F1: email
-- G1: address
-- H1: rateName
-- I1: eventTitle
-- J1: eventStartTime
-- K1: eventEndTime
-- L1: ticketId
-- M1: costItemId
-- N1: ticketStatus
-- O1: paymentStatus
-- P1: price
-- Q1: currency
-- R1: quantity
+**Option 3: Manually add these headers in row 1, columns A through Y:**
+- A1: Purchase Date
+- B1: Purchase Time
+- C1: Event Date
+- D1: Event Time
+- E1: Attendee Name
+- F1: Email
+- G1: Phone
+- H1: Address
+- I1: City
+- J1: State
+- K1: ZIP
+- L1: Ticket Name (Primary ticket only)
+- M1: Add-on Name (Add-ons only, comma-separated)
+- N1: Event Title
+- O1: Venue Name
+- P1: Venue Address
+- Q1: Event Start Time
+- R1: Event End Time
+- S1: Ticket ID
+- T1: Cost Item ID (Used for updates)
+- U1: QR Code
+- V1: Ticket Status
+- W1: Payment Status
+- X1: Price
+- Y1: Currency
 
 ### 2. Get Your Sheet ID
 
