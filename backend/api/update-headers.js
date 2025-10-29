@@ -23,7 +23,7 @@ async function updateSheetHeaders() {
     const SPREADSHEET_ID = process.env.GOOGLE_SHEETS_ID;
     const SHEET_NAME = process.env.SHEET_NAME || 'Universe-Webhook-Data';
 
-    // Define the new headers
+    // Define the new headers (24 columns, NO phone)
     const headers = [
       'Purchase Date',
       'Purchase Time',
@@ -32,22 +32,23 @@ async function updateSheetHeaders() {
       'Attendee Name',
       'Email',
       'Address',
-      'Ticket Rate Name',    // Updated from 'Rate Name'
-      'Add-On Rate Name',     // New column
+      'City',
+      'State',
+      'ZIP',
+      'Ticket Name',         // Primary ticket only
+      'Add-on Name',         // Add-ons only, comma-separated
       'Event Title',
-      'Event Address',
-      'Venue Name',           // New column
-      'Host Name',
+      'Venue Name',
+      'Venue Address',
       'Event Start Time',
       'Event End Time',
       'Ticket ID',
-      'Cost Item ID',
+      'Cost Item ID',        // Used for updates
+      'QR Code',
       'Ticket Status',
       'Payment Status',
       'Price',
-      'Service Fee',          // New column
-      'Currency',
-      'Quantity'
+      'Currency'
     ];
 
     console.log('Updating Google Sheet headers...');
