@@ -23,7 +23,7 @@ async function updateSheetHeaders() {
     const SPREADSHEET_ID = process.env.GOOGLE_SHEETS_ID;
     const SHEET_NAME = process.env.SHEET_NAME || 'Universe-Webhook-Data';
 
-    // Define the new headers (23 columns, separated pricing breakdown)
+    // Define the new headers (24 columns, added Host Name)
     const headers = [
       'Purchase Date',
       'Purchase Time',
@@ -35,6 +35,7 @@ async function updateSheetHeaders() {
       'Ticket Name',         // Primary ticket only
       'Add-on Name',         // Add-ons only, comma-separated
       'Event Title',
+      'Host Name',           // Host who sold the ticket
       'Venue Name',
       'Venue Address',
       'Event Start Time',
@@ -55,10 +56,10 @@ async function updateSheetHeaders() {
     console.log('Sheet Name:', SHEET_NAME);
     console.log('New headers count:', headers.length);
 
-    // Update the first row with new headers
+    // Update the first row with new headers  
     const response = await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!A1:W1`,
+      range: `${SHEET_NAME}!A1:X1`,
       valueInputOption: 'RAW',
       requestBody: {
         values: [headers],
