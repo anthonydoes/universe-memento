@@ -84,7 +84,7 @@ export default async function handler(req, res) {
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!A:T`,
+      range: `${SHEET_NAME}!A:X`,
     });
 
     let tickets = parseSheetData(response.data.values);
@@ -98,17 +98,17 @@ export default async function handler(req, res) {
     if (date_from) {
       const fromDate = new Date(date_from);
       tickets = tickets.filter(t => {
-        const ticketDate = new Date(t.purchaseDate);
+        const ticketDate = new Date(t['Purchase Date']);
         return ticketDate >= fromDate;
       });
       console.log('After date_from filter:', tickets.length);
-      console.log('Sample ticket dates:', tickets.slice(0, 3).map(t => t.purchaseDate));
+      console.log('Sample ticket dates:', tickets.slice(0, 3).map(t => t['Purchase Date']));
     }
     if (date_to) {
       const toDate = new Date(date_to);
       toDate.setHours(23, 59, 59, 999); // Include the entire end date
       tickets = tickets.filter(t => {
-        const ticketDate = new Date(t.purchaseDate);
+        const ticketDate = new Date(t['Purchase Date']);
         return ticketDate <= toDate;
       });
       console.log('After date_to filter:', tickets.length);
@@ -118,23 +118,23 @@ export default async function handler(req, res) {
     if (events && Array.isArray(events) && events.length > 0) {
       console.log('Filtering by events array:', events);
       const before = tickets.length;
-      tickets = tickets.filter(t => events.includes(t.eventTitle));
+      tickets = tickets.filter(t => events.includes(t['Event Title']));
       console.log(`After events filter: ${tickets.length} (was ${before})`);
     } else if (event) {
       console.log('Filtering by single event:', event);
-      console.log('Sample event titles before filter:', tickets.slice(0, 3).map(t => `"${t.eventTitle}"`));
+      console.log('Sample event titles before filter:', tickets.slice(0, 3).map(t => `"${t['Event Title']}"`));
       const before = tickets.length;
-      tickets = tickets.filter(t => t.eventTitle === event);
+      tickets = tickets.filter(t => t['Event Title'] === event);
       console.log(`After event filter: ${tickets.length} (was ${before})`);
       if (tickets.length > 0) {
-        console.log('Remaining event titles:', [...new Set(tickets.map(t => t.eventTitle))]);
+        console.log('Remaining event titles:', [...new Set(tickets.map(t => t['Event Title']))]);
       }
     }
     if (event_id) {
-      tickets = tickets.filter(t => t.eventTitle === event_id);
+      tickets = tickets.filter(t => t['Event Title'] === event_id);
     }
     if (status) {
-      tickets = tickets.filter(t => t.ticketStatus === status);
+      tickets = tickets.filter(t => t['Ticket Status'] === status);
     }
     
     console.log('Final filtered tickets count:', tickets.length);
@@ -142,34 +142,34 @@ export default async function handler(req, res) {
 
     // Calculate analytics from filtered data
     const totalTickets = tickets.length;
-    const totalRevenue = tickets.reduce((sum, t) => sum + parseFloat(t.price || 0), 0);
+    const totalRevenue = tickets.reduce((sum, t) => sum + parseFloat(t['Total Ticket Price'] || 0), 0);
     
     // Calculate average tickets per order
     // Since ticket_id is actually the order ID in Universe, count unique ticket IDs
-    const uniqueOrderIds = [...new Set(tickets.map(t => t.ticketId || t['Ticket ID'] || ''))];
+    const uniqueOrderIds = [...new Set(tickets.map(t => t['Ticket ID'] || ''))];
     const totalOrders = uniqueOrderIds.length;
     const averageTicketsPerOrder = totalOrders > 0 ? (totalTickets / totalOrders).toFixed(1) : 0;
 
     // Sales by day
     const salesByDay = {};
     tickets.forEach(ticket => {
-      const date = ticket.purchaseDate;
+      const date = ticket['Purchase Date'];
       if (!salesByDay[date]) {
         salesByDay[date] = { tickets: 0, revenue: 0 };
       }
       salesByDay[date].tickets += 1;
-      salesByDay[date].revenue += parseFloat(ticket.price || 0);
+      salesByDay[date].revenue += parseFloat(ticket['Total Ticket Price'] || 0);
     });
 
     // Top events from filtered data
     const eventStats = {};
     tickets.forEach(ticket => {
-      const eventName = ticket.eventTitle;
+      const eventName = ticket['Event Title'];
       if (!eventStats[eventName]) {
         eventStats[eventName] = { tickets: 0, revenue: 0 };
       }
       eventStats[eventName].tickets += 1;
-      eventStats[eventName].revenue += parseFloat(ticket.price || 0);
+      eventStats[eventName].revenue += parseFloat(ticket['Total Ticket Price'] || 0);
     });
 
     const topEvents = Object.entries(eventStats)
@@ -180,8 +180,8 @@ export default async function handler(req, res) {
     // Location distribution from filtered data
     const locations = {};
     tickets.forEach(ticket => {
-      // eventAddress should be in column J based on our update
-      const location = extractLocation(ticket.eventAddress || ticket['Event Address'] || '');
+      // Use Venue Address for location distribution
+      const location = extractLocation(ticket['Venue Address'] || '');
       locations[location] = (locations[location] || 0) + 1;
     });
 
