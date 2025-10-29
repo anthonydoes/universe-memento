@@ -233,7 +233,7 @@ export default async function handler(req, res) {
     const signature = req.headers['x-uniiverse-signature'];
     const secret = process.env.UNIVERSE_WEBHOOK_SECRET;
     
-    console.log('=== WEBHOOK RECEIVED (v7.0 - Fix Ticket ID Lookup) ===');
+    console.log('=== WEBHOOK RECEIVED (v8.0 - Fix Event Type Detection) ===');
     console.log('Timestamp:', new Date().toISOString());
     console.log('Headers:', JSON.stringify(req.headers, null, 2));
     console.log('Signature present:', !!signature);
@@ -278,8 +278,8 @@ export default async function handler(req, res) {
     }
 
     if (filteredTicketData.length > 0) {
-      // Check event type
-      const eventType = payload.event || 'ticket_purchase';
+      // Check event type from headers first, then payload
+      const eventType = req.headers['x-uniiverse-event'] || payload.event || 'ticket_purchase';
       console.log(`Event type: ${eventType}`);
       
       if (eventType === 'ticket_update') {
